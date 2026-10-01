@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriverGuard AI | Real-Time Driver Safety & Fatigue Monitor</title>
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dark-theme">
+    <!-- Background Animated Mesh -->
+    <div class="bg-gradient-mesh"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="top-navbar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>DRIVER<span>GUARD</span> AI</h1>
+                    <span class="subtitle">Next-Gen Driver Fatigue & Drowsiness Telemetry</span>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <div class="trip-timer-card">
+                    <i class="fa-regular fa-clock"></i>
+                    <span id="trip-timer">00:00:00</span>
+                </div>
+
+                <div class="safety-score-pill" id="score-pill">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                    <span>Safety Score: <strong id="header-safety-score">100%</strong></span>
+                </div>
+
+                <button id="end-trip-btn" class="btn btn-outline-danger" title="End Current Session">
+                    <i class="fa-solid fa-flag-checkered"></i> End Trip
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            <!-- Left Column: Video Feed & Primary Controls -->
+            <section class="feed-section glass-panel">
+                <div class="panel-header">
+                    <div class="title-with-badge">
+                        <h2><i class="fa-solid fa-video"></i> Live Vision Stream</h2>
+                        <span id="fps-badge" class="badge badge-fps">0 FPS</span>
+                    </div>
+                    <div class="status-indicator">
+                        <span id="status-pill" class="status-pill status-offline">
+                            <span class="status-dot"></span>
+                            <span id="status-text">OFFLINE</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Video Viewport Container -->
+                <div class="video-container" id="video-container">
+                    <!-- Warning / Flash Border -->
+                    <div class="danger-flash" id="danger-flash"></div>
+                    
+                    <img id="video-feed" src="" alt="Live Video Feed" class="video-stream hidden">
+                    
+                    <!-- Offline / Placeholder Screen -->
+                    <div id="video-placeholder" class="video-placeholder">
+                        <div class="placeholder-content">
+                            <i class="fa-solid fa-camera-rotate placeholder-icon"></i>
+                            <h3>Vision Engine Inactive</h3>
+                            <p>Click "Start Camera" to initialize MediaPipe Face Mesh & AI Telemetry.</p>
+                            <button id="start-stream-btn" class="btn btn-primary btn-lg">
+                                <i class="fa-solid fa-play"></i> Start Camera Stream
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Dynamic HUD Overlays -->
+                    <div class="video-hud" id="video-hud">
+                        <div class="hud-tag" id="hud-ear">EAR: --</div>
+                        <div class="hud-tag" id="hud-mar">MAR: --</div>
+                        <div class="hud-tag" id="hud-closure">Closed: 0.0s</div>
+                    </div>
+                </div>
+
+                <!-- Video Action Bar -->
+                <div class="feed-controls">
+                    <button id="toggle-camera-btn" class="btn btn-primary">
+                        <i class="fa-solid fa-power-off"></i> <span id="camera-btn-text">Start Vision</span>
+                    </button>
+                    <button id="reset-trip-btn" class="btn btn-secondary">
+                        <i class="fa-solid fa-arrow-rotate-right"></i> Reset Stats
+                    </button>
+                    <button id="test-alarm-btn" class="btn btn-warning">
+                        <i class="fa-solid fa-bell"></i> Test Audio Alarm
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Column: Real-Time Telemetry Cards -->
+            <section class="telemetry-section">
+                <div class="metrics-grid">
+                    <!-- Card 1: Eye Aspect Ratio (EAR) -->
+                    <div class="metric-card glass-panel">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-regular fa-eye"></i> Eye Aspect Ratio (EAR)</span>
+                            <span class="metric-badge" id="ear-status-badge">Normal</span>
+                        </div>
+                        <div class="metric-body">
+                            <div class="metric-value-wrapper">
+                                <h3 id="ear-value" class="metric-number">0.00</h3>
+                                <span class="metric-unit">thresh &lt; <span id="ear-thresh-display">0.20</span></span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="ear-progress" class="progress-bar-fill progress-blue" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Fatigue & Yawning (MAR) -->
+                    <div class="metric-card glass-panel">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-face-tired"></i> Mouth Ratio (MAR)</span>
+                            <span class="metric-badge" id="mar-status-badge">Normal</span>
+                        </div>
+                        <div class="metric-body">
+                            <div class="metric-value-wrapper">
+                                <h3 id="mar-value" class="metric-number">0.00</h3>
+                                <span class="metric-unit">thresh &gt; <span id="mar-thresh-display">0.65</span></span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="mar-progress" class="progress-bar-fill progress-orange" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Blink Rate Counter -->
+                    <div class="metric-card glass-panel">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-eye-slash"></i> Blink Rate</span>
+                            <span class="metric-badge" id="blink-badge">Normal</span>
+                        </div>
+                        <div class="metric-body">
+                            <div class="metric-value-wrapper">
+                                <h3 id="blinks-rate" class="metric-number">0</h3>
+                                <span class="metric-unit">Blinks / Min (<span id="total-blinks">0</span> total)</span>
+                            </div>
+                            <p class="metric-subtext">Optimal range: 12 - 24 blinks/min</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Drowsy & Fatigue Warnings -->
+                    <div class="metric-card glass-panel">
+                        <div class="metric-header">
+                            <span class="metric-title"><i class="fa-solid fa-triangle-exclamation"></i> Fatigue Events</span>
+                            <span class="metric-badge badge-danger" id="incident-count-badge">0 Warnings</span>
+                        </div>
+                        <div class="metric-body">
+                            <div class="metric-value-wrapper">
+                                <h3 id="drowsy-incidents-count" class="metric-number">0</h3>
+                                <span class="metric-unit">Micro-sleep alarms</span>
+                            </div>
+                            <p class="metric-subtext">Yawn events: <strong id="yawn-incidents-count">0</strong></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Telemetry Live Graph (Chart.js) -->
+                <div class="chart-panel glass-panel">
+                    <div class="panel-header">
+                        <h2><i class="fa-solid fa-chart-line"></i> Real-Time EAR & MAR Telemetry</h2>
+                        <span class="chart-legend-hint">Live 30-Second Rolling Window</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="telemetryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Grid: Sensitivity Controls & Incident Stream -->
+        <div class="bottom-grid">
+            <!-- Sensitivity & Audio Settings Panel -->
+            <section class="glass-panel settings-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-sliders"></i> Sensitivity & Alarm Tuning</h2>
+                    <button id="reset-settings-btn" class="btn-text">Reset Defaults</button>
+                </div>
+                
+                <div class="settings-form">
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <label for="ear-slider">Eye Aspect Ratio (EAR) Threshold</label>
+                            <span id="ear-slider-val" class="slider-value">0.20</span>
+                        </div>
+                        <input type="range" id="ear-slider" min="0.12" max="0.32" step="0.01" value="0.20">
+                        <span class="setting-help">Lower = stricter (requires tighter eye closure).</span>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <label for="delay-slider">Drowsy Alarm Delay</label>
+                            <span id="delay-slider-val" class="slider-value">0.8s</span>
+                        </div>
+                        <input type="range" id="delay-slider" min="0.4" max="2.5" step="0.1" value="0.8">
+                        <span class="setting-help">Seconds of continuous eye closure before audio alarm triggers.</span>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <label for="mar-slider">Yawn / Mouth (MAR) Threshold</label>
+                            <span id="mar-slider-val" class="slider-value">0.65</span>
+                        </div>
+                        <input type="range" id="mar-slider" min="0.45" max="0.85" step="0.01" value="0.65">
+                        <span class="setting-help">Sensitivity for wide open mouth / yawning detection.</span>
+                    </div>
+
+                    <div class="setting-item-toggle">
+                        <div class="toggle-info">
+                            <span class="toggle-title"><i class="fa-solid fa-volume-high"></i> In-Browser Audio Alarm</span>
+                            <span class="toggle-desc">Synthesized high-frequency buzzer when drowsy</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="audio-toggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Incident Log Table Panel -->
+            <section class="glass-panel incident-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-clipboard-list"></i> Incident & Event Log</h2>
+                    <a href="/api/trip/export" id="export-csv-btn" class="btn btn-sm btn-outline">
+                        <i class="fa-solid fa-file-arrow-down"></i> Export CSV
+                    </a>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="incident-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Details</th>
+                                <th>EAR</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidents-tbody">
+                            <tr class="no-data-row">
+                                <td colspan="5">No fatigue incidents recorded. System monitoring is clear.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Trip Summary Modal -->
+    <div id="trip-modal" class="modal-overlay hidden">
+        <div class="modal-card glass-panel">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-trophy"></i> Trip Safety Summary</h2>
+                <button id="close-modal-btn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="summary-score-banner">
+                    <div class="score-circle">
+                        <span id="modal-score" class="big-score">96%</span>
+                        <span class="score-caption">Overall Safety</span>
+                    </div>
+                    <div class="score-verdict" id="modal-verdict">
+                        <h3>Safe Driver Profile</h3>
+                        <p>High attentiveness detected with minimal fatigue events.</p>
+                    </div>
+                </div>
+
+                <div class="summary-stats-grid">
+                    <div class="stat-box">
+                        <span class="stat-label">Total Duration</span>
+                        <strong id="modal-duration">00:15:30</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Total Blinks</span>
+                        <strong id="modal-blinks">142</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Drowsy Warnings</span>
+                        <strong id="modal-drowsy" class="text-danger">1</strong>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Yawn Events</span>
+                        <strong id="modal-yawns" class="text-warning">2</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="/api/trip/export" class="btn btn-primary">
+                    <i class="fa-solid fa-download"></i> Download Full Report (CSV)
+                </a>
+                <button id="new-trip-btn" class="btn btn-secondary">Start New Trip</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

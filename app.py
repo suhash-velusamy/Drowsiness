@@ -424,6 +424,8 @@ def api_trip_export():
     
     response = Response(output.getvalue(), mimetype='text/csv')
     response.headers['Content-Disposition'] = f'attachment; filename=driver_safety_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    return response
+
 @app.route('/api/process_frame', methods=['POST'])
 def api_process_frame():
     import base64
